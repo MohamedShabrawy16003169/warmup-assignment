@@ -7,14 +7,12 @@ const fs = require("fs");
 // Returns: string formatted as h:mm:ss
 // ============================================================
 function getShiftDuration(startTime, endTime) {
-
     function toSeconds(timeStr) {
         timeStr = timeStr.trim();
-        let parts = timeStr.split(" ");   // ["6:01:20", "am"]
+        let parts = timeStr.split(" ");
         let time = parts[0];
         let period = parts[1];
-
-        let timeParts = time.split(":");  // ["6", "01", "20"]
+        let timeParts = time.split(":");
         let h = parseInt(timeParts[0]);
         let m = parseInt(timeParts[1]);
         let s = parseInt(timeParts[2]);
@@ -27,16 +25,12 @@ function getShiftDuration(startTime, endTime) {
 
     let start = toSeconds(startTime);
     let end = toSeconds(endTime);
-
     let diff = end - start;
-
     let hours = Math.floor(diff / 3600);
     let minutes = Math.floor((diff % 3600) / 60);
     let seconds = diff % 60;
-
     if (minutes < 10) minutes = "0" + minutes;
     if (seconds < 10) seconds = "0" + seconds;
-
     return hours + ":" + minutes + ":" + seconds;
 }
 
@@ -47,37 +41,27 @@ function getShiftDuration(startTime, endTime) {
 // Returns: string formatted as h:mm:ss
 // ============================================================
 function getIdleTime(startTime, endTime) {
-
-    // helper: convert hh:mm:ss am/pm to seconds
     function toSeconds(timeStr) {
         timeStr = timeStr.trim();
-        let parts = timeStr.split(" "); // ["6:01:20", "am"]
+        let parts = timeStr.split(" ");
         let time = parts[0];
         let period = parts[1];
-
         let t = time.split(":");
         let h = parseInt(t[0]);
         let m = parseInt(t[1]);
         let s = parseInt(t[2]);
-
         if (period === "pm" && h !== 12) h += 12;
         if (period === "am" && h === 12) h = 0;
-
         return h * 3600 + m * 60 + s;
     }
 
-    // delivery hours in seconds
     let deliveryStart = toSeconds("8:00:00 am");
     let deliveryEnd = toSeconds("10:00:00 pm");
-
     let start = toSeconds(startTime);
     let end = toSeconds(endTime);
-
     let idleBefore = Math.max(0, deliveryStart - start);
     let idleAfter = Math.max(0, end - deliveryEnd);
-
     let totalIdle = idleBefore + idleAfter;
-
     let hours = Math.floor(totalIdle / 3600);
     let minutes = Math.floor((totalIdle % 3600) / 60);
     let seconds = totalIdle % 60;
@@ -96,7 +80,6 @@ function getIdleTime(startTime, endTime) {
 // ============================================================
 function getActiveTime(shiftDuration, idleTime) {
 
-    // helper: convert "h:mm:ss" to seconds
     function toSeconds(timeStr) {
         let t = timeStr.split(":");
         let h = parseInt(t[0]);
@@ -105,7 +88,6 @@ function getActiveTime(shiftDuration, idleTime) {
         return h * 3600 + m * 60 + s;
     }
 
-    // helper: convert seconds to "h:mm:ss"
     function toHMS(seconds) {
         let h = Math.floor(seconds / 3600);
         let m = Math.floor((seconds % 3600) / 60);
@@ -119,10 +101,9 @@ function getActiveTime(shiftDuration, idleTime) {
 
     let shiftSec = toSeconds(shiftDuration);
     let idleSec = toSeconds(idleTime);
-
     let activeSec = shiftSec - idleSec;
 
-    // avoid negative time
+
     if (activeSec < 0) activeSec = 0;
 
     return toHMS(activeSec);
@@ -136,7 +117,7 @@ function getActiveTime(shiftDuration, idleTime) {
 // ============================================================
 function metQuota(date, activeTime) {
 
-    // helper: convert "h:mm:ss" to seconds
+
     function toSeconds(timeStr) {
         let t = timeStr.split(":");
         let h = parseInt(t[0]);
@@ -147,7 +128,7 @@ function metQuota(date, activeTime) {
 
     let activeSec = toSeconds(activeTime);
 
-    // Determine if date is in Eid period: 2025-04-10 to 2025-04-30
+
     let eidStart = new Date("2025-04-10");
     let eidEnd = new Date("2025-04-30");
     let currDate = new Date(date);
@@ -155,9 +136,9 @@ function metQuota(date, activeTime) {
     let quotaSec;
 
     if (currDate >= eidStart && currDate <= eidEnd) {
-        quotaSec = 6 * 3600; // 6 hours
+        quotaSec = 6 * 3600;
     } else {
-        quotaSec = 8 * 3600 + 24 * 60; // 8h 24m
+        quotaSec = 8 * 3600 + 24 * 60;
     }
 
     return activeSec >= quotaSec;
@@ -171,34 +152,28 @@ function metQuota(date, activeTime) {
 // ============================================================
 function addShiftRecord(textFile, shiftObj) {
     const fs = require("fs");
-
-    // Read the file (assume it exists)
     let content = fs.readFileSync(textFile, "utf8").trim();
-
-    // Split into lines
     let lines = [];
     if (content !== "") {
         lines = content.split("\n");
     }
 
-    // Check for duplicate entry
+
     for (let i = 0; i < lines.length; i++) {
         let parts = lines[i].split(",");
         let existingID = parts[0].trim();
         let existingDate = parts[2].trim();
         if (existingID === shiftObj.driverID.trim() && existingDate === shiftObj.date.trim()) {
-            return {}; // duplicate found
+            return {};
         }
     }
 
-    // Calculate values
     let shiftDuration = getShiftDuration(shiftObj.startTime, shiftObj.endTime);
     let idleTime = getIdleTime(shiftObj.startTime, shiftObj.endTime);
     let activeTime = getActiveTime(shiftDuration, idleTime);
     let quotaMet = metQuota(shiftObj.date, activeTime);
     let hasBonus = false;
 
-    // Build the full object
     let newObj = {
         driverID: shiftObj.driverID,
         driverName: shiftObj.driverName,
@@ -212,7 +187,6 @@ function addShiftRecord(textFile, shiftObj) {
         hasBonus: hasBonus
     };
 
-    // Build CSV line
     let newLine = [
         newObj.driverID,
         newObj.driverName,
@@ -225,8 +199,6 @@ function addShiftRecord(textFile, shiftObj) {
         newObj.metQuota,
         newObj.hasBonus
     ].join(",");
-
-    // Insert after last record of same driverID, or at the end
     let inserted = false;
     for (let i = lines.length - 1; i >= 0; i--) {
         let parts = lines[i].split(",");
@@ -240,10 +212,7 @@ function addShiftRecord(textFile, shiftObj) {
     if (inserted === false) {
         lines.push(newLine);
     }
-
-    // Write back to file
     fs.writeFileSync(textFile, lines.join("\n"), "utf8");
-
     return newObj;
 }
 
